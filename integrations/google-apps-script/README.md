@@ -1,0 +1,76 @@
+# FWC form to Google Sheets
+
+## Files
+
+- `Code.gs`: Google Apps Script web-app receiver. Paste into Google's Apps Script editor.
+- `appsscript.json`: optional manifest with V8, California time zone and Sheets scope.
+- `../../server/google-apps-script.ts`: website backend delivery adapter. Keep it on the server.
+
+Flow: website form -> same-origin website backend -> Apps Script -> private Google Sheet.
+
+## Set up Google Sheets and Apps Script
+
+1. Create a private Google Sheet owned by the account that will deploy the script. Copy the spreadsheet ID from `https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit`.
+2. Open **Extensions > Apps Script**, replace `Code.gs` with this folder's `Code.gs`, and save. No installable form-submit trigger is needed: the deployed web app's `doPost` receives the website submission.
+3. In **Project Settings > Script Properties**, add:
+
+   | Property | Value |
+   | --- | --- |
+   | `SPREADSHEET_ID` | Your spreadsheet ID |
+   | `SHEET_NAME` | `Website Leads` or a new, dedicated tab name |
+   | `SHARED_SECRET` | A randomly generated secret of at least 32 characters |
+
+   Generate the secret locally with `node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"`. Store the same value in the website backend's `GOOGLE_APPS_SCRIPT_SECRET` environment variable. Do not put it in React, a VITE_ variable, Git, or a URL.
+4. Select and run `setupSheet` once. Approve Google Sheets access. It creates the tab and headers without overwriting existing rows. A tab with different headers is rejected; use a new tab rather than renaming internal columns.
+5. Choose **Deploy > New deployment > Web app**. Execute as **Me** (the sheet owner), with access **Anyone** so the authenticated website backend can reach it without a Google login. The shared secret still authenticates writes. Workspace administrator restrictions may affect this option. Keep the spreadsheet itself private.
+6. Copy the deployed **Web app URL ending in `/exec`** and supply it for integration. The `/dev` test URL is not the production endpoint. When changing script code later, update the deployment to a new version.
+
+The optional manifest can be pasted into `appsscript.json` after enabling manifest visibility in Project Settings. Also set the spreadsheet's own time zone to America/Los_Angeles if California-local timestamps are desired; Date cell display follows spreadsheet settings.
+
+## Saved columns
+
+Submitted At, Request ID, Payload Hash, Full Name, Phone, Email, Service Code, Service Required, ZIP Code, Message, Status.
+
+Every customer-entered field is saved, including optional blank email/message. The honeypot is validated and intentionally not stored. Timestamp and `New` status are added automatically. Phone and ZIP are text to preserve leading zeros. Formula-like customer strings are escaped as literal text.
+
+Request ID is the browser's existing Idempotency-Key. A script lock serializes lookup and append. An identical retry returns success without a second row; a changed payload using the same ID is rejected. Duplicate protection lasts while the row/ID remains in this tab. Archive rather than delete IDs if retries must continue to deduplicate. Do not manually edit Request ID or Payload Hash.
+
+## Website backend connection
+
+Set these only in the backend environment:
+
+```dotenv
+GOOGLE_APPS_SCRIPT_URL=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
+GOOGLE_APPS_SCRIPT_SECRET=YOUR_PRIVATE_SHARED_SECRET
+```
+
+Use the adapter with the existing hosting-neutral handler:
+
+```ts
+import { createLeadHandler } from './server/leads';
+import { createGoogleSheetsDelivery } from './server/google-apps-script';
+
+const handler = createLeadHandler({
+  ...approvedDurableStorageAndRateLimitAdapters,
+  origin: 'https://fwccompanies.com',
+  deliver: createGoogleSheetsDelivery({
+    url: serverEnv.GOOGLE_APPS_SCRIPT_URL,
+    secret: serverEnv.GOOGLE_APPS_SCRIPT_SECRET,
+  }),
+});
+// Mount handler at POST /api/leads using the selected hosting runtime.
+```
+
+`approvedDurableStorageAndRateLimitAdapters` and `serverEnv` above describe the hosting-specific dependencies, not existing exports. The handler has not been deployed: hosting is still to be selected. Add trusted per-client rate limiting and durable claim/receipt adapters before exposing the endpoint. Apps Script adds an authenticated global cap of 60 new writes per minute but cannot reliably identify visitors' source IP addresses.
+
+After the backend is configured and tested, set frontend `VITE_LEAD_ENDPOINT=/api/leads` and rebuild. Do not put the Apps Script URL directly into VITE_LEAD_ENDPOINT. Browser-to-Google redirects/preflight cannot be treated as confirmed delivery, and `mode: no-cors` cannot read the acknowledgement. Do not show success for opaque responses.
+
+The adapter follows Google's ContentService redirect and requires `{ "accepted": true, "requestId": "matching-id" }`. Script failures return JSON with `accepted: false`, even where the HTTP status is 200. The browser's success state and lead-success event run only after confirmed backend acceptance.
+
+## Verify before enabling
+
+Send one clearly marked test request through the configured backend and check the sheet manually. Resend the same ID to confirm only one row. Check invalid fields, honeypot input, incorrect secret, mismatched retry content and unavailable Google service; these must not produce success. Keep production submissions disabled until this verification and the privacy notice update are complete.
+
+Google Apps Script and Sheets have service quotas; monitor execution failures and revisit the append/lookup design as volume grows. No live Google account was accessed and no test row was created as part of this repository change.
+
+References: [Google web-app deployment](https://developers.google.com/apps-script/guides/web), [ContentService and redirects](https://developers.google.com/apps-script/guides/content), [LockService](https://developers.google.com/apps-script/reference/lock/lock-service).
