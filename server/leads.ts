@@ -1,4 +1,4 @@
-import { leadSchema, type Lead } from "../src/lib/leads";
+import { leadSchema, type Lead } from "../src/lib/lead-schema";
 /** Supply production adapters backed by durable shared storage, never process memory. */
 export interface LeadDependencies {
   origin: string;

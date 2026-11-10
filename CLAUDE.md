@@ -9,7 +9,7 @@ The application is now scaffolded as React + strict TypeScript + Vite + Tailwind
 - `instruction.MD` is the governing project brief.
 - `fwcdetails.md` is the factual discovery source.
 - `src/` contains the landing page, reusable header/actions/services/form, content and validation.
-- `server/leads.ts` is a hosting-neutral submission handler requiring real delivery and durable-storage adapters. It is not deployed.
+- `server/leads.ts` is the shared submission handler. `netlify/functions/leads.ts` mounts the production `/api/leads` endpoint; `server/netlify-leads.ts` connects Google Sheets. Apps Script provides locked, durable request-ID/payload deduplication; Netlify config supplies platform per-client rate limiting. See `docs/NETLIFY.md` for runtime environment requirements.
 - `docs/INTEGRATION.md` records remaining production gates.
 
 Actual scripts: `npm run dev`, `npm run build` (type-check, client build, Vite SSR build and static prerender), `npm run preview`, `npm run typecheck`, `npm run lint`, `npm test`. See package.json for additional QA scripts.

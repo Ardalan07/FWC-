@@ -6,3 +6,4 @@ dist/
 .prerender/
 playwright-report/
 test-results/
+.netlify/

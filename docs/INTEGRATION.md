@@ -37,3 +37,7 @@ A hosting-neutral Request/Response handler is provided in server/leads.ts. It en
 A concrete server-side destination adapter now exists at `server/google-apps-script.ts`, with the separate Google receiver at `integrations/google-apps-script/Code.gs`. See `integrations/google-apps-script/README.md` for Script Properties, private sheet setup, deployment and the backend connection. The destination is not connected or deployed. The Apps Script write is confirmed before acceptance and independently deduplicates by request ID under a script lock. All customer form fields are saved; the honeypot is rejected rather than stored.
 
 Local connection verified on 6 November 2026: Apps Script accepted a labeled test row, deduplicated its retry, and the browser form confirmed receipt through the local Vite backend. `.env.local` now sets VITE_LEAD_ENDPOINT=/api/leads. This does not deploy a production backend; live hosting configuration remains outstanding.
+
+## Netlify production route
+
+The missing production route is now implemented at netlify/functions/leads.ts with custom path /api/leads. netlify.toml selects the Functions directory and build defaults. See docs/NETLIFY.md for runtime-secret scopes and deployment verification. This supersedes earlier notes that no production handler exists; actual live deployment must still be checked.

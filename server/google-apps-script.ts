@@ -1,4 +1,4 @@
-import { leadSchema, type Lead } from "../src/lib/leads";
+import { leadSchema, type Lead } from "../src/lib/lead-schema";
 export interface GoogleAppsScriptConfig {
   url: string;
   secret: string;
